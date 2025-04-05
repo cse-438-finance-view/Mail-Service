@@ -1,0 +1,86 @@
+# .NET build klasörleri
+bin/
+obj/
+out/
+
+# Visual Studio dosyaları
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.vspscc
+*.vssscc
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.sln.docstates
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Logs
+*.log
+logs/
+
+# Testler
+TestResults/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Veritabanı dosyaları
+*.mdf
+*.ldf
+*.ndf
+
+# Özel dosyalar
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.json
+
+# Geçici dosyalar
+[Tt]emp/
+[Tt]mp/
+
+# OS dosyaları
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Diğer
+*.swp
+*.*~
+*.dbmdl
+*.dbproj.schemaview
+*.pfx
+*.publishsettings
+orleans.codegen.cs
+launchSettings.json
+
+# Yerel ayarlar
+local.settings.json 

@@ -260,6 +260,58 @@ public class TestController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    [HttpPost("simulate-email-command")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult SimulateEmailCommand([FromBody] EmailCommand command)
+    {
+        try
+        {
+            var factory = new ConnectionFactory
+            {
+                HostName = _configuration["RabbitMQ:Host"],
+                UserName = _configuration["RabbitMQ:UserName"],
+                Password = _configuration["RabbitMQ:Password"],
+                VirtualHost = _configuration["RabbitMQ:VirtualHost"]
+            };
+
+            int.TryParse(_configuration["RabbitMQ:Port"], out int port);
+            if (port > 0)
+            {
+                factory.Port = port;
+            }
+
+            using var connection = factory.CreateConnection();
+            using var channel = connection.CreateModel();
+
+            var exchange = _configuration["RabbitMQ:SagaExchange"];
+            var routingKey = _configuration["RabbitMQ:SagaRoutingKey"];
+
+            channel.ExchangeDeclare(
+                exchange: exchange,
+                type: ExchangeType.Topic,
+                durable: true,
+                autoDelete: false);
+            
+            var messageBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(command));
+            
+            channel.BasicPublish(
+                exchange: exchange,
+                routingKey: routingKey,
+                basicProperties: null,
+                body: messageBytes);
+
+            _logger.LogInformation($"Simulated email command for {command.Email}, Type: {command.MailType}");
+            
+            return Ok(new { message = $"Email command simulation successful: {command.Email}, Type: {command.MailType}" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during email command simulation");
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }
 
 public class UserRegistrationRequest

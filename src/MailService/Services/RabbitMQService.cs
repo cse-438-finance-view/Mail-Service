@@ -85,6 +85,28 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 queue: "user_created_queue",
                 exchange: "investment_exchange",
                 routingKey: "user.created");
+
+            var sagaExchange = _configuration["RabbitMQ:SagaExchange"];
+            var sagaQueue = _configuration["RabbitMQ:SagaQueue"];
+            var sagaRoutingKey = _configuration["RabbitMQ:SagaRoutingKey"];
+
+            _channel.ExchangeDeclare(
+                exchange: sagaExchange,
+                type: ExchangeType.Topic,
+                durable: true,
+                autoDelete: false);
+
+            _channel.QueueDeclare(
+                queue: sagaQueue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null);
+
+            _channel.QueueBind(
+                queue: sagaQueue,
+                exchange: sagaExchange,
+                routingKey: sagaRoutingKey);
         }
         catch (Exception ex)
         {
@@ -203,8 +225,55 @@ public class RabbitMQService : IRabbitMQService, IDisposable
             queue: "user_created_queue",
             autoAck: false,
             consumer: userCreatedConsumer);
+
+        var emailCommandConsumer = new EventingBasicConsumer(_channel);
+        var sagaQueue = _configuration["RabbitMQ:SagaQueue"];
+        
+        emailCommandConsumer.Received += (model, ea) =>
+        {
+            try
+            {
+                var body = ea.Body.ToArray();
+                var message = Encoding.UTF8.GetString(body);
+                var routingKey = ea.RoutingKey;
+
+                _logger.LogInformation($"Message received from saga exchange. Routing key: {routingKey}");
+                _logger.LogInformation($"Saga message content: {message}");
+
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
+                };
+                
+                var command = JsonSerializer.Deserialize<EmailCommand>(message, options);
+                
+                if (command != null)
+                {
+                    _logger.LogInformation($"Processing email command: Email={command.Email}, MailType={command.MailType}");
+                    HandleEmailCommand(command);
+                }
+                else
+                {
+                    _logger.LogError("Failed to deserialize email command");
+                }
+
+                _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing message from saga exchange");
+                _channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: true);
+            }
+        };
+
+        _channel.BasicConsume(
+            queue: sagaQueue,
+            autoAck: false,
+            consumer: emailCommandConsumer);
             
-        _logger.LogInformation("Started consuming messages from both queues");
+        _logger.LogInformation("Started consuming messages from all queues");
     }
 
     public void HandleUserRegisteredEvent(UserRegisteredEvent @event)
@@ -262,6 +331,71 @@ public class RabbitMQService : IRabbitMQService, IDisposable
             </html>";
 
         _emailService.SendEmail(@event.Email, subject, message);
+    }
+
+    public void HandleEmailCommand(EmailCommand command)
+    {
+        _logger.LogInformation($"Processing email command: {command.Email}, Type: {command.MailType}");
+        
+        if (string.IsNullOrEmpty(command.Email))
+        {
+            _logger.LogError("Cannot send email: Email address is null or empty in the received command");
+            return;
+        }
+        
+        var fullName = GetFullName(command.Name, command.Surname);
+        
+        if (command.MailType == "Welcome")
+        {
+            var subject = "Welcome - Your Account Has Been Created Successfully";
+            var message = $@"
+                <html>
+                <body>
+                    <h2>Hello {fullName},</h2>
+                    <p>Your account has been successfully created. You can now use our system.</p>
+                    <p>Thank you for joining our platform!</p>
+                </body>
+                </html>";
+
+            _emailService.SendEmail(command.Email, subject, message);
+        }
+        else if (command.MailType == "Failure")
+        {
+            var subject = "Account Creation Failed";
+            var message = $@"
+                <html>
+                <body>
+                    <h2>Hello {fullName},</h2>
+                    <p>We're sorry, but we couldn't create your account.</p>
+                    <p>Reason: {command.FailureReason ?? "Unknown error"}</p>
+                    <p>Please try again or contact our support team for assistance.</p>
+                </body>
+                </html>";
+
+            _emailService.SendEmail(command.Email, subject, message);
+        }
+        else
+        {
+            _logger.LogWarning($"Unknown mail type received: {command.MailType}");
+        }
+    }
+
+    private string GetFullName(string? firstName, string? lastName)
+    {
+        if (string.IsNullOrEmpty(firstName) && string.IsNullOrEmpty(lastName))
+        {
+            return "Valued Customer";
+        }
+        else if (string.IsNullOrEmpty(firstName))
+        {
+            return lastName!;
+        }
+        else if (string.IsNullOrEmpty(lastName))
+        {
+            return firstName;
+        }
+        
+        return $"{firstName} {lastName}";
     }
 
     public void Dispose()

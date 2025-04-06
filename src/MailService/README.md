@@ -65,7 +65,3 @@ Content-Type: application/json
   "username": "testuser"
 }
 ```
-
-## Contact
-
-For communication, you can send an email to example@mail.com. 

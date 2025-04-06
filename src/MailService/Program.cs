@@ -5,12 +5,9 @@ using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 
-// Swagger ekleme
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -26,20 +23,17 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
     
-    // XML belgesini ekle
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     c.IncludeXmlComments(xmlPath);
 });
 
-// Mail Servis ekleme
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 builder.Services.AddHostedService<RabbitMQHostedService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -47,7 +41,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => 
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mail Service API v1");
-        c.RoutePrefix = string.Empty; // Kök dizinde Swagger UI'ı göster
+        c.RoutePrefix = string.Empty; 
     });
 }
 

@@ -40,7 +40,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
             _connection = factory.CreateConnection();
             _channel = _connection.CreateModel();
 
-            // 1. Original domain_events exchange for backward compatibility
             _channel.ExchangeDeclare(
                 exchange: "domain_events",
                 type: ExchangeType.Topic,
@@ -59,7 +58,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 exchange: "domain_events",
                 routingKey: "user.registered");
 
-            // 2. Investment exchange for the new integration
             _channel.ExchangeDeclare(
                 exchange: "investment_exchange",
                 type: ExchangeType.Topic,
@@ -78,7 +76,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 exchange: "investment_exchange",
                 routingKey: "UserCreatedEvent");
 
-            // Olası alternatif routing key'leri için de bağlantı ekle
             _channel.QueueBind(
                 queue: "user_created_queue",
                 exchange: "investment_exchange",
@@ -98,7 +95,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
 
     public void StartConsuming()
     {
-        // 1. Consume from user_registered_queue (original)
         var userRegisteredConsumer = new EventingBasicConsumer(_channel);
         
         userRegisteredConsumer.Received += (model, ea) =>
@@ -134,7 +130,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
             autoAck: false,
             consumer: userRegisteredConsumer);
 
-        // 2. Consume from user_created_queue (new investment integration)
         var userCreatedConsumer = new EventingBasicConsumer(_channel);
         
         userCreatedConsumer.Received += (model, ea) =>
@@ -152,7 +147,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 {
                     try 
                     {
-                        // Daha esnek deserializasyon için options
                         var options = new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true,
@@ -160,7 +154,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                             ReadCommentHandling = JsonCommentHandling.Skip
                         };
                         
-                        // Önce Investment Service formatında deserialize etmeyi dene
                         var investmentEvent = JsonSerializer.Deserialize<InvestmentServiceUserEvent>(message, options);
                         
                         _logger.LogInformation($"Raw investment event: Id={investmentEvent?.Id}, Email={investmentEvent?.Email}, " +
@@ -169,7 +162,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                         
                         if (investmentEvent != null)
                         {
-                            // Bizim formatımıza dönüştür
                             var @event = investmentEvent.ToUserCreatedEvent();
                             _logger.LogInformation($"Converted event: Id={@event.Id}, Email={@event.Email}, Name={@event.Name}, Surname={@event.Surname}");
                             
@@ -177,7 +169,6 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                         }
                         else
                         {
-                            // Alternatif olarak doğrudan UserCreatedEvent formatında dene
                             _logger.LogWarning("Could not deserialize as InvestmentServiceUserEvent, trying UserCreatedEvent format");
                             var @event = JsonSerializer.Deserialize<UserCreatedEvent>(message, options);
                             
@@ -195,7 +186,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                     catch (JsonException jsonEx)
                     {
                         _logger.LogError(jsonEx, "JSON deserialization error: {ErrorMessage}. Raw message: {Message}", jsonEx.Message, message);
-                        _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false); // Acknowledge to prevent requeue
+                        _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false); 
                     }
                 }
 

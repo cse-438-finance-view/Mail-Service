@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  mailservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5050:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - MailService__Host=smtp.gmail.com
+      - MailService__Port=587
+      - MailService__Email=eeaseapp@gmail.com
+      - MailService__Name=Mail Service
+      - MailService__Key=fsyiqgzhvvaquckh
+      - RabbitMQ__Host=host.docker.internal
+      - RabbitMQ__UserName=guest
+      - RabbitMQ__Password=guest
+      - RabbitMQ__Port=5672
+      - RabbitMQ__VirtualHost=/
+    restart: on-failure
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace MailService.Events;
 
-// Bu sınıf Investment Management Service'den gelen event formatına uygundur
 public class InvestmentServiceUserEvent
 {
     [JsonPropertyName("id")]
@@ -17,7 +16,6 @@ public class InvestmentServiceUserEvent
     [JsonPropertyName("surname")]
     public string Surname { get; set; }
 
-    // Diğer Investment Service özellikler (opsiyonel)
     [JsonPropertyName("userName")]
     public string UserName { get; set; }
     
@@ -27,7 +25,6 @@ public class InvestmentServiceUserEvent
     [JsonPropertyName("createDate")]
     public DateTime? CreateDate { get; set; }
     
-    // UserCreatedEvent formatına dönüştürme
     public UserCreatedEvent ToUserCreatedEvent()
     {
         return new UserCreatedEvent(

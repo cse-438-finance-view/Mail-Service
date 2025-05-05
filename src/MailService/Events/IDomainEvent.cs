@@ -1,5 +1,5 @@
 namespace MailService.Events;
-
+ 
 public interface IDomainEvent
 {
     string EventType { get; }

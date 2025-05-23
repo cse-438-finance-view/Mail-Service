@@ -3,6 +3,7 @@ using System.Text.Json;
 using MailService.Events;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System;
 
 namespace MailService.Services;
 
@@ -340,6 +341,31 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         if (string.IsNullOrEmpty(command.Email))
         {
             _logger.LogError("Cannot send email: Email address is null or empty in the received command");
+            return;
+        }
+        
+        // If PDF attachment payload is present, handle report email
+        if (!string.IsNullOrEmpty(command.PdfBase64) && !string.IsNullOrEmpty(command.FileName))
+        {
+            _logger.LogInformation($"Processing report email command for: {command.Email}, file: {command.FileName}");
+            try
+            {
+                var pdfBytes = Convert.FromBase64String(command.PdfBase64);
+                var reportFullName = GetFullName(command.Name, command.Surname);
+                var subject = "Your Requested PDF Report";
+                var message = $@"
+                    <html>
+                    <body>
+                        <h2>Hello {reportFullName},</h2>
+                        <p>Please find attached your requested PDF report.</p>
+                    </body>
+                    </html>";
+                _emailService.SendEmailWithAttachment(command.Email, subject, message, pdfBytes, command.FileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending report email to {Email}", command.Email);
+            }
             return;
         }
         

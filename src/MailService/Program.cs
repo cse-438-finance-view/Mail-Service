@@ -1,4 +1,5 @@
 using MailService.HostedServices;
+using MailService.Middleware;
 using MailService.Services;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
@@ -30,6 +31,7 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
+builder.Services.AddSingleton<IFirebaseAuthService, FirebaseAuthService>();
 builder.Services.AddHostedService<RabbitMQHostedService>();
 
 var app = builder.Build();
@@ -46,6 +48,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<FirebaseAuthMiddleware>();
 app.MapControllers();
 
 app.MapGet("/", () => "Mail Service is running! Visit /swagger for API documentation.");

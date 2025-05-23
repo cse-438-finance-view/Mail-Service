@@ -18,4 +18,10 @@ public class EmailCommand
     
     [JsonPropertyName("failureReason")]
     public string? FailureReason { get; set; }
+    
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; set; }
+    
+    [JsonPropertyName("pdfBase64")]
+    public string? PdfBase64 { get; set; }
 } 

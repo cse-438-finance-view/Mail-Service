@@ -108,6 +108,27 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 queue: sagaQueue,
                 exchange: sagaExchange,
                 routingKey: sagaRoutingKey);
+
+            // Setup Dead Letter Queue for failed email commands
+            _channel.ExchangeDeclare(
+                exchange: "saga.commands.dlq",
+                type: ExchangeType.Topic,
+                durable: true,
+                autoDelete: false);
+
+            _channel.QueueDeclare(
+                queue: "email.failed.queue",
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null);
+
+            _channel.QueueBind(
+                queue: "email.failed.queue",
+                exchange: "saga.commands.dlq",
+                routingKey: "email.failed");
+
+            _logger.LogInformation("RabbitMQ setup completed with Dead Letter Queue configuration");
         }
         catch (Exception ex)
         {
@@ -305,20 +326,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
         
         var subject = "Welcome to Investment Management Service";
-        var fullName = $"{@event.Name} {@event.Surname}";
-        
-        if (string.IsNullOrEmpty(@event.Name) && string.IsNullOrEmpty(@event.Surname))
-        {
-            fullName = "Valued Customer";
-        }
-        else if (string.IsNullOrEmpty(@event.Name))
-        {
-            fullName = @event.Surname;
-        }
-        else if (string.IsNullOrEmpty(@event.Surname))
-        {
-            fullName = @event.Name;
-        }
+        var fullName = GetFullName(@event.Name, @event.Surname);
         
         var message = $@"
             <html>
@@ -361,10 +369,22 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                     </body>
                     </html>";
                 _emailService.SendEmailWithAttachment(command.Email, subject, message, pdfBytes, command.FileName);
+                _logger.LogInformation("Report email sent successfully to {Email}", command.Email);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending report email to {Email}", command.Email);
+                
+                // Send to dead letter queue for manual review or retry later
+                try
+                {
+                    PublishToDeadLetterQueue(command, ex.Message);
+                    _logger.LogInformation("Failed email command sent to dead letter queue for {Email}", command.Email);
+                }
+                catch (Exception dlqEx)
+                {
+                    _logger.LogError(dlqEx, "Failed to send email command to dead letter queue for {Email}", command.Email);
+                }
             }
             return;
         }
@@ -422,6 +442,36 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
         
         return $"{firstName} {lastName}";
+    }
+
+    private void PublishToDeadLetterQueue(EmailCommand command, string errorMessage)
+    {
+        try
+        {
+            var dlqMessage = new
+            {
+                OriginalCommand = command,
+                ErrorMessage = errorMessage,
+                FailedAt = DateTime.UtcNow,
+                RetryCount = 0
+            };
+
+            var messageBody = JsonSerializer.Serialize(dlqMessage);
+            var body = Encoding.UTF8.GetBytes(messageBody);
+
+            _channel.BasicPublish(
+                exchange: "saga.commands.dlq",
+                routingKey: "email.failed",
+                basicProperties: null,
+                body: body);
+
+            _logger.LogInformation("Published failed email command to DLQ for {Email}", command.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish to dead letter queue for {Email}", command.Email);
+            throw;
+        }
     }
 
     public void Dispose()
